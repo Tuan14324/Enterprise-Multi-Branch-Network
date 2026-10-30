@@ -1,0 +1,97 @@
+
+# ISP Router Configuration
+
+## 1. Vai trò
+
+ISP Router đóng vai trò mạng trung gian kết nối:
+- HQ Router
+- BR1 Router
+- BR2 Router
+
+ISP cung cấp khả năng liên lạc giữa các địa chỉ WAN public để các Router có thể thiết lập Site-to-Site IPsec VPN.
+
+ISP không định tuyến các mạng LAN private được bảo vệ bên trong VPN.
+
+## 2. WAN Addressing
+
+| Interface | Connected Device | IP Address |
+|---|---|---|
+| G0/0 | HQ Router | 200.1.0.1/30 |
+| G0/1 | BR1 Router | 200.1.1.1/30 |
+| G0/2 | BR2 Router | 200.1.2.1/30 |
+
+## 3. Basic Configuration
+
+```cisco
+enable
+configure terminal
+
+hostname ISP
+no ip domain-lookup
+enable secret ISP-Enable@123
+
+service password-encryption
+
+banner motd # UNAUTHORIZED ACCESS PROHIBITED #
+
+```
+
+## 4. Interface Configuration
+
+### Link to HQ
+
+```cisco
+interface gigabitEthernet 0/0
+ description LINK_TO_HQ
+ ip address 200.1.0.1 255.255.255.252
+ no shutdown
+```
+
+### Link to BR1
+
+```cisco
+interface gigabitEthernet 0/1
+ description LINK_TO_BR1
+ ip address 200.1.1.1 255.255.255.252
+ no shutdown
+```
+
+### Link to BR2
+
+```cisco
+interface gigabitEthernet 0/2
+ description LINK_TO_BR2
+ ip address 200.1.2.1 255.255.255.252
+ no shutdown
+```
+
+## 5. Routing
+
+Ba mạng WAN /30 đều là mạng kết nối trực tiếp với ISP Router.
+
+Không cần cấu hình OSPF giữa ISP và các Router chi nhánh trong thiết kế này.
+
+Không cấu hình route đến các mạng LAN private như 192.168.x.0/24 trên ISP.
+
+## 6. Verification
+
+```cisco
+show ip interface brief
+show ip route
+show running-config
+```
+
+Kiểm tra kết nối:
+
+```cisco
+ping 200.1.0.2
+ping 200.1.1.2
+ping 200.1.2.2
+```
+
+## 7. Expected Result
+
+- Ba interface WAN ở trạng thái up/up.
+- ISP có ba mạng WAN /30 trong bảng định tuyến connected.
+- Các Router WAN có thể liên lạc với ISP Gateway.
+- Các WAN Peer có thể liên lạc với nhau thông qua ISP.

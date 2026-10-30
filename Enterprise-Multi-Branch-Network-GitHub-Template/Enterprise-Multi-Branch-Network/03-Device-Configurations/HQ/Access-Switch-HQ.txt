@@ -1,0 +1,175 @@
+
+# SW-HQ-ACCESS Configuration
+
+## 1. Vai trò
+
+SW-HQ-ACCESS là Layer 2 Access Switch tại Headquarters.
+
+Chức năng:
+- Kết nối PC, Server, Printer, WLC và Access Point.
+- Phân chia thiết bị vào các VLAN.
+- Chuyển tiếp traffic lên CORE-HQ thông qua Trunk.
+- Không thực hiện Inter-VLAN Routing.
+
+## 2. VLAN Plan
+
+| VLAN | Name | Network |
+|---|---|---|
+| 10 | SERVER | 192.168.10.0/24 |
+| 20 | ADMIN | 192.168.20.0/24 |
+| 30 | WIFI | 192.168.30.0/24 |
+| 40 | WLC-MGMT | 192.168.40.0/24 |
+
+## 3. Basic Configuration
+
+```cisco
+enable
+configure terminal
+
+hostname SW-HQ-ACCESS
+no ip domain-lookup
+
+enable secret SW-HQ-Enable@123
+service password-encryption
+
+banner motd # HQ ACCESS SWITCH - AUTHORIZED ACCESS ONLY #
+```
+
+## 4. VLAN Configuration
+
+```cisco
+vlan 10
+ name SERVER
+
+vlan 20
+ name ADMIN
+
+vlan 30
+ name WIFI
+
+vlan 40
+ name WLC-MGMT
+```
+
+## 5. Access Port Configuration
+
+### VLAN 10 - SERVER
+
+Ví dụ: DHCP Server, DNS Server.
+
+```cisco
+interface range fastEthernet 0/1 - 2
+ description SERVER_CONNECTIONS
+ switchport mode access
+ switchport access vlan 10
+ spanning-tree portfast
+ no shutdown
+```
+
+IP Server:
+- DHCP: 192.168.10.10/24
+- DNS: 192.168.10.11/24
+- Default Gateway: 192.168.10.1
+
+### VLAN 20 - ADMIN
+
+```cisco
+interface range fastEthernet 0/3 - 8
+ description ADMIN_CLIENTS
+ switchport mode access
+ switchport access vlan 20
+ spanning-tree portfast
+ no shutdown
+```
+
+### VLAN 30 - WIFI
+
+```cisco
+interface range fastEthernet 0/9 - 12
+ description WIFI_ACCESS_POINTS
+ switchport mode access
+ switchport access vlan 30
+ spanning-tree portfast
+ no shutdown
+```
+
+Lưu ý: Cấu hình AP phụ thuộc mô hình Wireless và cách ánh xạ SSID vào VLAN.
+
+### VLAN 40 - WLC MANAGEMENT
+
+```cisco
+interface fastEthernet 0/13
+ description WLC_CONNECTION
+ switchport mode access
+ switchport access vlan 40
+ spanning-tree portfast
+ no shutdown
+```
+
+Cấu hình trên giả định WLC chỉ sử dụng một VLAN trên cổng kết nối. Nếu WLC cần mang nhiều VLAN cho các SSID, cần cấu hình trunk theo thiết kế WLAN thực tế.
+
+## 6. Trunk to CORE-HQ
+
+Ví dụ CORE-HQ kết nối với SW-HQ-ACCESS qua Gi0/1.
+
+```cisco
+interface gigabitEthernet 0/1
+ description TRUNK_TO_CORE-HQ
+ switchport mode trunk
+ switchport trunk allowed vlan 10,20,30,40
+ no shutdown
+```
+
+## 7. Switch Management
+
+Ví dụ sử dụng địa chỉ quản trị 192.168.40.2:
+
+```cisco
+interface vlan 40
+ description SWITCH_MANAGEMENT
+ ip address 192.168.40.2 255.255.255.0
+ no shutdown
+
+ip default-gateway 192.168.40.1
+```
+
+## 8. Security - Unused Ports
+
+Các cổng không sử dụng nên được shutdown.
+
+Ví dụ:
+
+```cisco
+interface range fastEthernet 0/14 - 24
+ description UNUSED_PORTS
+ shutdown
+```
+
+Chỉ shutdown những cổng thực sự không sử dụng.
+
+## 9. Save Configuration
+
+```cisco
+end
+write memory
+```
+
+## 10. Verification
+
+```cisco
+show vlan brief
+show interfaces trunk
+show interfaces status
+show mac address-table
+show ip interface brief
+show running-config
+```
+
+## 11. Expected Result
+
+- Các Server thuộc VLAN 10.
+- Máy tính Admin thuộc VLAN 20.
+- Thiết bị Wi-Fi thuộc VLAN 30 theo thiết kế.
+- WLC thuộc VLAN 40 trong mô hình một VLAN quản trị.
+- Trunk giữa Access Switch và CORE-HQ hoạt động.
+- Switch có thể được quản trị thông qua IP 192.168.40.2.

@@ -1,0 +1,133 @@
+
+# CORE-BR1 Configuration
+
+## 1. Vai trò
+
+CORE-BR1 là Layer 3 Switch tại chi nhánh BR1.
+
+Chức năng:
+- Tạo VLAN 50 và VLAN 60.
+- Làm Default Gateway cho client.
+- Thực hiện Inter-VLAN Routing.
+- Chuyển DHCP Request về DHCP Server tại HQ.
+- Chạy OSPF với BR1 Router.
+
+## 2. IP Addressing
+
+| Interface | IP Address |
+|---|---|
+| VLAN 50 | 192.168.50.1/24 |
+| VLAN 60 | 192.168.60.1/24 |
+| Transit to BR1 Router | 10.255.0.6/30 |
+
+## 3. Basic Configuration
+
+```cisco
+enable
+configure terminal
+
+hostname CORE-BR1
+no ip domain-lookup
+enable secret CORE-BR1-Enable@123
+
+service password-encryption
+ip routing
+
+banner motd # CORE-BR1 - AUTHORIZED ACCESS ONLY #
+```
+
+## 4. VLAN Configuration
+
+```cisco
+vlan 50
+ name ADMIN
+
+vlan 60
+ name STAFF
+```
+
+## 5. SVI Configuration
+
+```cisco
+interface vlan 50
+ description BR1_ADMIN_GATEWAY
+ ip address 192.168.50.1 255.255.255.0
+ ip helper-address 192.168.10.10
+ no shutdown
+
+interface vlan 60
+ description BR1_STAFF_GATEWAY
+ ip address 192.168.60.1 255.255.255.0
+ ip helper-address 192.168.10.10
+ no shutdown
+```
+
+## 6. Transit Interface
+
+```cisco
+interface gigabitEthernet 0/2
+ description L3_TRANSIT_TO_BR1_ROUTER
+ no switchport
+ ip address 10.255.0.6 255.255.255.252
+ no shutdown
+```
+
+## 7. Trunk to Access Switch
+
+```cisco
+interface gigabitEthernet 0/1
+ description TRUNK_TO_ACCESS_SWITCH
+ switchport mode trunk
+ switchport trunk allowed vlan 50,60
+ no shutdown
+```
+
+## 8. OSPF Configuration
+
+```cisco
+router ospf 1
+ router-id 2.2.2.3
+ passive-interface default
+ no passive-interface gigabitEthernet 0/2
+
+ network 10.255.0.4 0.0.0.3 area 0
+ network 192.168.50.0 0.0.0.255 area 0
+ network 192.168.60.0 0.0.0.255 area 0
+```
+
+## 9. Save Configuration
+
+```cisco
+end
+write memory
+```
+
+## 10. Verification
+
+```cisco
+show vlan brief
+show interfaces trunk
+show ip interface brief
+show ip route
+show ip ospf neighbor
+show running-config
+```
+
+## 11. Expected Result
+
+- VLAN 50 và VLAN 60 được tạo.
+- Các client nhận đúng Default Gateway.
+- CORE-BR1 định tuyến giữa VLAN 50 và VLAN 60.
+- DHCP Relay chuyển tiếp request đến DHCP Server tại HQ.
+- OSPF Neighbor với BR1 Router đạt FULL.
+- CORE-BR1 có route đến các mạng HQ thông qua BR1 Router.
+
+## 12. Troubleshooting
+
+| Vấn đề | Nguyên nhân có thể |
+|---|---|
+| Client không ping được Gateway | Sai VLAN hoặc SVI |
+| SVI down | VLAN chưa có port Layer 2 hoạt động |
+| DHCP không hoạt động | Sai helper-address hoặc thiếu route |
+| Không học default route | BR1 Router chưa quảng bá default route |
+| OSPF không FULL | Sai transit IP hoặc OSPF configuration |

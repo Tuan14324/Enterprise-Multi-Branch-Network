@@ -1,0 +1,143 @@
+
+# BR1 Router Configuration
+
+## 1. Vai trò
+
+BR1 Router là Router biên tại chi nhánh BR1.
+
+Chức năng:
+- Kết nối ISP.
+- Kết nối CORE-BR1.
+- Chạy OSPF với CORE-BR1.
+- Thiết lập IPsec VPN đến HQ.
+- Chuyển tiếp traffic giữa BR1 và HQ.
+
+## 2. Interface Addressing
+
+| Interface | Connected Device | IP Address |
+|---|---|---|
+| G0/0 | ISP | 200.1.1.2/30 |
+| G0/1 | CORE-BR1 | 10.255.0.5/30 |
+
+## 3. Basic Configuration
+
+```cisco
+enable
+configure terminal
+
+hostname BR1-Router
+no ip domain-lookup
+enable secret BR1-Enable@123
+
+service password-encryption
+
+banner motd # BR1 ROUTER - AUTHORIZED ACCESS ONLY #
+```
+
+## 4. Interface Configuration
+
+```cisco
+interface gigabitEthernet 0/0
+ description WAN_TO_ISP
+ ip address 200.1.1.2 255.255.255.252
+ no shutdown
+
+interface gigabitEthernet 0/1
+ description TRANSIT_TO_CORE-BR1
+ ip address 10.255.0.5 255.255.255.252
+ no shutdown
+```
+
+## 5. Default Route
+
+```cisco
+ip route 0.0.0.0 0.0.0.0 200.1.1.1
+```
+
+## 6. OSPF Configuration
+
+```cisco
+router ospf 1
+ router-id 2.2.2.2
+ network 10.255.0.4 0.0.0.3 area 0
+ default-information originate
+```
+
+OSPF chỉ chạy trên liên kết BR1 Router đến CORE-BR1.
+
+## 7. IKE Phase 1
+
+```cisco
+crypto isakmp policy 10
+ encryption aes 256
+ hash sha
+ authentication pre-share
+ group 5
+ lifetime 86400
+
+crypto isakmp key VPN@12345 address 200.1.0.2
+```
+
+## 8. IPsec Transform Set
+
+```cisco
+crypto ipsec transform-set TS-VPN esp-aes 256 esp-sha-hmac
+```
+
+## 9. Crypto ACL
+
+Crypto ACL mô tả traffic giữa BR1 LAN và HQ LAN.
+
+```cisco
+access-list 110 permit ip 192.168.50.0 0.0.0.255 192.168.10.0 0.0.0.255
+access-list 110 permit ip 192.168.50.0 0.0.0.255 192.168.20.0 0.0.0.255
+access-list 110 permit ip 192.168.50.0 0.0.0.255 192.168.30.0 0.0.0.255
+access-list 110 permit ip 192.168.50.0 0.0.0.255 192.168.40.0 0.0.0.255
+
+access-list 110 permit ip 192.168.60.0 0.0.0.255 192.168.10.0 0.0.0.255
+access-list 110 permit ip 192.168.60.0 0.0.0.255 192.168.20.0 0.0.0.255
+access-list 110 permit ip 192.168.60.0 0.0.0.255 192.168.30.0 0.0.0.255
+access-list 110 permit ip 192.168.60.0 0.0.0.255 192.168.40.0 0.0.0.255
+```
+
+## 10. Crypto Map
+
+```cisco
+crypto map VPN-MAP 10 ipsec-isakmp
+ set peer 200.1.0.2
+ set transform-set TS-VPN
+ match address 110
+```
+
+Apply Crypto Map:
+
+```cisco
+interface gigabitEthernet 0/0
+ crypto map VPN-MAP
+```
+
+## 11. Save Configuration
+
+```cisco
+end
+write memory
+```
+
+## 12. Verification
+
+```cisco
+show ip interface brief
+show ip route
+show ip ospf neighbor
+show crypto isakmp sa
+show crypto ipsec sa
+show crypto map
+show access-lists
+```
+
+## 13. Expected Result
+
+- BR1 Router kết nối được ISP.
+- OSPF Neighbor với CORE-BR1 đạt FULL.
+- BR1 học được các mạng LAN tại CORE-BR1.
+- BR1 có thể thiết lập IPsec VPN đến HQ khi có traffic phù hợp.

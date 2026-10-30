@@ -1,0 +1,134 @@
+
+# BR2 Router Configuration
+
+## 1. Vai trò
+
+BR2 Router là Router biên tại chi nhánh BR2.
+
+Chức năng:
+- Kết nối BR2 với ISP.
+- Kết nối CORE-BR2.
+- Chạy OSPF với CORE-BR2.
+- Thiết lập Site-to-Site IPsec VPN đến HQ.
+- Chuyển tiếp traffic giữa BR2 và HQ.
+
+## 2. Interface Addressing
+
+| Interface | Connected Device | IP Address |
+|---|---|---|
+| G0/0 | ISP | 200.1.2.2/30 |
+| G0/1 | CORE-BR2 | 10.255.0.9/30 |
+
+## 3. Basic Configuration
+
+```cisco
+enable
+configure terminal
+
+hostname BR2-Router
+no ip domain-lookup
+enable secret BR2-Enable@123
+
+service password-encryption
+
+banner motd # BR2 ROUTER - AUTHORIZED ACCESS ONLY #
+```
+
+## 4. Interface Configuration
+
+```cisco
+interface gigabitEthernet 0/0
+ description WAN_TO_ISP
+ ip address 200.1.2.2 255.255.255.252
+ no shutdown
+
+interface gigabitEthernet 0/1
+ description TRANSIT_TO_CORE-BR2
+ ip address 10.255.0.9 255.255.255.252
+ no shutdown
+```
+
+## 5. Default Route
+
+```cisco
+ip route 0.0.0.0 0.0.0.0 200.1.2.1
+```
+
+## 6. OSPF Configuration
+
+```cisco
+router ospf 1
+ router-id 3.3.3.3
+ network 10.255.0.8 0.0.0.3 area 0
+ default-information originate
+```
+
+## 7. IKE Phase 1
+
+```cisco
+crypto isakmp policy 10
+ encryption aes 256
+ hash sha
+ authentication pre-share
+ group 5
+ lifetime 86400
+
+crypto isakmp key VPN@12345 address 200.1.0.2
+```
+
+## 8. IPsec Transform Set
+
+```cisco
+crypto ipsec transform-set TS-VPN esp-aes 256 esp-sha-hmac
+```
+
+## 9. Crypto ACL
+
+```cisco
+access-list 120 permit ip 192.168.70.0 0.0.0.255 192.168.10.0 0.0.0.255
+access-list 120 permit ip 192.168.70.0 0.0.0.255 192.168.20.0 0.0.0.255
+access-list 120 permit ip 192.168.70.0 0.0.0.255 192.168.30.0 0.0.0.255
+access-list 120 permit ip 192.168.70.0 0.0.0.255 192.168.40.0 0.0.0.255
+```
+
+## 10. Crypto Map
+
+```cisco
+crypto map VPN-MAP 10 ipsec-isakmp
+ set peer 200.1.0.2
+ set transform-set TS-VPN
+ match address 120
+```
+
+Apply Crypto Map:
+
+```cisco
+interface gigabitEthernet 0/0
+ crypto map VPN-MAP
+```
+
+## 11. Save Configuration
+
+```cisco
+end
+write memory
+```
+
+## 12. Verification
+
+```cisco
+show ip interface brief
+show ip route
+show ip ospf neighbor
+show crypto isakmp sa
+show crypto ipsec sa
+show crypto map
+show access-lists
+```
+
+## 13. Expected Result
+
+- BR2 Router kết nối được ISP.
+- OSPF Neighbor với CORE-BR2 đạt FULL.
+- BR2 học được mạng LAN tại CORE-BR2.
+- BR2 có thể thiết lập IPsec VPN đến HQ khi có traffic phù hợp.

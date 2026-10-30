@@ -1,0 +1,129 @@
+
+# SW-BR2-ACCESS Configuration
+
+## 1. Vai trò
+
+SW-BR2-ACCESS kết nối các thiết bị đầu cuối tại chi nhánh BR2.
+
+Chức năng:
+- Kết nối PC, Laptop và Printer.
+- Phân chia VLAN 70.
+- Chuyển tiếp traffic lên CORE-BR2.
+- Không thực hiện Inter-VLAN Routing.
+
+## 2. VLAN Plan
+
+| VLAN | Name | Network |
+|---|---|---|
+| 70 | USERS | 192.168.70.0/24 |
+
+## 3. Basic Configuration
+
+```cisco
+enable
+configure terminal
+
+hostname SW-BR2-ACCESS
+no ip domain-lookup
+
+enable secret SW-BR2-Enable@123
+service password-encryption
+
+banner motd # BR2 ACCESS SWITCH - AUTHORIZED ACCESS ONLY #
+```
+
+## 4. VLAN Configuration
+
+```cisco
+vlan 70
+ name USERS
+```
+
+## 5. Access Port Configuration
+
+### VLAN 70 - USERS
+
+```cisco
+interface range fastEthernet 0/1 - 20
+ description BR2_USER_DEVICES
+ switchport mode access
+ switchport access vlan 70
+ spanning-tree portfast
+ no shutdown
+```
+
+### Printer
+
+Nếu Printer được kết nối trực tiếp vào Switch:
+
+```cisco
+interface fastEthernet 0/21
+ description BR2_NETWORK_PRINTER
+ switchport mode access
+ switchport access vlan 70
+ spanning-tree portfast
+ no shutdown
+```
+
+Printer:
+- IP Address: 192.168.70.10/24
+- Default Gateway: 192.168.70.1
+
+## 6. Trunk to CORE-BR2
+
+```cisco
+interface gigabitEthernet 0/1
+ description TRUNK_TO_CORE-BR2
+ switchport mode trunk
+ switchport trunk allowed vlan 70
+ no shutdown
+```
+
+## 7. Switch Management
+
+Ví dụ sử dụng IP quản trị 192.168.70.2:
+
+```cisco
+interface vlan 70
+ description SWITCH_MANAGEMENT
+ ip address 192.168.70.2 255.255.255.0
+ no shutdown
+
+ip default-gateway 192.168.70.1
+```
+
+## 8. Unused Ports
+
+```cisco
+interface range fastEthernet 0/22 - 24
+ description UNUSED_PORTS
+ shutdown
+```
+
+Chỉ shutdown những cổng thực sự không sử dụng.
+
+## 9. Save Configuration
+
+```cisco
+end
+write memory
+```
+
+## 10. Verification
+
+```cisco
+show vlan brief
+show interfaces trunk
+show interfaces status
+show mac address-table
+show ip interface brief
+show running-config
+```
+
+## 11. Expected Result
+
+- Các thiết bị người dùng thuộc VLAN 70.
+- Printer thuộc VLAN 70.
+- Trunk đến CORE-BR2 hoạt động.
+- Switch có IP quản trị 192.168.70.2.
+- Default Gateway của VLAN 70 là 192.168.70.1.

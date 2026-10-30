@@ -1,0 +1,127 @@
+
+# SW-BR1-ACCESS Configuration
+
+## 1. Vai trò
+
+SW-BR1-ACCESS kết nối các thiết bị đầu cuối tại chi nhánh BR1.
+
+Chức năng:
+- Kết nối máy tính Admin và Staff.
+- Phân chia VLAN 50 và VLAN 60.
+- Chuyển tiếp traffic lên CORE-BR1 qua Trunk.
+- Không thực hiện Inter-VLAN Routing.
+
+## 2. VLAN Plan
+
+| VLAN | Name | Network |
+|---|---|---|
+| 50 | ADMIN | 192.168.50.0/24 |
+| 60 | STAFF | 192.168.60.0/24 |
+
+## 3. Basic Configuration
+
+```cisco
+enable
+configure terminal
+
+hostname SW-BR1-ACCESS
+no ip domain-lookup
+
+enable secret SW-BR1-Enable@123
+service password-encryption
+
+banner motd # BR1 ACCESS SWITCH - AUTHORIZED ACCESS ONLY #
+```
+
+## 4. VLAN Configuration
+
+```cisco
+vlan 50
+ name ADMIN
+
+vlan 60
+ name STAFF
+```
+
+## 5. Access Port Configuration
+
+### VLAN 50 - ADMIN
+
+```cisco
+interface range fastEthernet 0/1 - 8
+ description BR1_ADMIN_CLIENTS
+ switchport mode access
+ switchport access vlan 50
+ spanning-tree portfast
+ no shutdown
+```
+
+### VLAN 60 - STAFF
+
+```cisco
+interface range fastEthernet 0/9 - 20
+ description BR1_STAFF_CLIENTS
+ switchport mode access
+ switchport access vlan 60
+ spanning-tree portfast
+ no shutdown
+```
+
+## 6. Trunk to CORE-BR1
+
+```cisco
+interface gigabitEthernet 0/1
+ description TRUNK_TO_CORE-BR1
+ switchport mode trunk
+ switchport trunk allowed vlan 50,60
+ no shutdown
+```
+
+## 7. Switch Management
+
+Ví dụ sử dụng IP quản trị 192.168.50.2:
+
+```cisco
+interface vlan 50
+ description SWITCH_MANAGEMENT
+ ip address 192.168.50.2 255.255.255.0
+ no shutdown
+
+ip default-gateway 192.168.50.1
+```
+
+## 8. Unused Ports
+
+```cisco
+interface range fastEthernet 0/21 - 24
+ description UNUSED_PORTS
+ shutdown
+```
+
+Chỉ shutdown những cổng không sử dụng.
+
+## 9. Save Configuration
+
+```cisco
+end
+write memory
+```
+
+## 10. Verification
+
+```cisco
+show vlan brief
+show interfaces trunk
+show interfaces status
+show mac address-table
+show ip interface brief
+show running-config
+```
+
+## 11. Expected Result
+
+- PC Admin thuộc VLAN 50.
+- PC Staff thuộc VLAN 60.
+- Trunk đến CORE-BR1 mang VLAN 50 và VLAN 60.
+- Switch có IP quản trị 192.168.50.2.
+- Các VLAN sử dụng Default Gateway trên CORE-BR1.

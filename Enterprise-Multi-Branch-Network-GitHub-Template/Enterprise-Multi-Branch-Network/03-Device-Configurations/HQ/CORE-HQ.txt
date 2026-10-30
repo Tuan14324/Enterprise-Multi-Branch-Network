@@ -1,0 +1,173 @@
+
+# CORE-HQ Configuration
+
+## 1. Vai trò
+
+CORE-HQ là Layer 3 Switch tại Headquarters.
+
+Chức năng:
+- Tạo VLAN và SVI.
+- Làm Default Gateway cho các VLAN tại HQ.
+- Thực hiện Inter-VLAN Routing.
+- Chuyển tiếp DHCP Request đến DHCP Server.
+- Chạy OSPF với HQ Router.
+- Quảng bá các mạng VLAN vào OSPF.
+
+## 2. VLAN Addressing
+
+| VLAN | Name | SVI IP |
+|---|---|---|
+| 10 | SERVER | 192.168.10.1/24 |
+| 20 | ADMIN | 192.168.20.1/24 |
+| 30 | WIFI | 192.168.30.1/24 |
+| 40 | WLC-MGMT | 192.168.40.1/24 |
+
+Transit đến HQ Router: `10.255.0.2/30`.
+
+## 3. Basic Configuration
+
+```cisco
+enable
+configure terminal
+
+hostname CORE-HQ
+no ip domain-lookup
+enable secret CORE-HQ-Enable@123
+
+service password-encryption
+ip routing
+
+banner motd # CORE-HQ - AUTHORIZED ACCESS ONLY #
+```
+
+## 4. VLAN Configuration
+
+```cisco
+vlan 10
+ name SERVER
+
+vlan 20
+ name ADMIN
+
+vlan 30
+ name WIFI
+
+vlan 40
+ name WLC-MGMT
+```
+
+## 5. SVI Configuration
+
+```cisco
+interface vlan 10
+ description SERVER_GATEWAY
+ ip address 192.168.10.1 255.255.255.0
+ no shutdown
+
+interface vlan 20
+ description ADMIN_GATEWAY
+ ip address 192.168.20.1 255.255.255.0
+ ip helper-address 192.168.10.10
+ no shutdown
+
+interface vlan 30
+ description WIFI_GATEWAY
+ ip address 192.168.30.1 255.255.255.0
+ ip helper-address 192.168.10.10
+ no shutdown
+
+interface vlan 40
+ description WLC_MANAGEMENT_GATEWAY
+ ip address 192.168.40.1 255.255.255.0
+ ip helper-address 192.168.10.10
+ no shutdown
+```
+
+## 6. Transit Interface to HQ Router
+
+```cisco
+interface gigabitEthernet 0/2
+ description L3_TRANSIT_TO_HQ_ROUTER
+ no switchport
+ ip address 10.255.0.2 255.255.255.252
+ no shutdown
+```
+
+## 7. Trunk Interface to Access Switch
+
+Ví dụ:
+
+```cisco
+interface gigabitEthernet 0/1
+ description TRUNK_TO_ACCESS_SWITCH
+ switchport mode trunk
+ switchport trunk allowed vlan 10,20,30,40
+ no shutdown
+```
+
+Cấu hình trunk cần khớp với cổng thực tế và các VLAN được sử dụng trên Access Switch.
+
+## 8. OSPF Configuration
+
+```cisco
+router ospf 1
+ router-id 1.1.1.2
+ passive-interface default
+ no passive-interface gigabitEthernet 0/2
+
+ network 10.255.0.0 0.0.0.3 area 0
+ network 192.168.10.0 0.0.0.255 area 0
+ network 192.168.20.0 0.0.0.255 area 0
+ network 192.168.30.0 0.0.0.255 area 0
+ network 192.168.40.0 0.0.0.255 area 0
+```
+
+Các interface VLAN được quảng bá vào OSPF nhưng không gửi Hello để hình thành neighbor với PC hoặc Server.
+
+## 9. Default Route
+
+CORE-HQ nhận default route từ HQ Router thông qua OSPF nếu HQ Router quảng bá default route thành công.
+
+Kiểm tra:
+
+```cisco
+show ip route
+```
+
+## 10. Save Configuration
+
+```cisco
+end
+write memory
+```
+
+## 11. Verification
+
+```cisco
+show vlan brief
+show interfaces trunk
+show ip interface brief
+show ip route
+show ip ospf neighbor
+show ip protocols
+show running-config
+```
+
+## 12. Expected Result
+
+- VLAN 10, 20, 30, 40 được tạo.
+- SVI có đúng IP Gateway.
+- CORE-HQ định tuyến giữa các VLAN.
+- DHCP Relay chuyển tiếp request đến 192.168.10.10.
+- OSPF Neighbor với HQ Router đạt FULL.
+- CORE-HQ học default route từ HQ Router nếu được quảng bá thành công.
+
+## 13. Troubleshooting
+
+| Vấn đề | Nguyên nhân có thể |
+|---|---|
+| SVI down/down | VLAN chưa được tạo hoặc chưa có port Layer 2 hoạt động trong VLAN |
+| Không ping được Router | Transit interface hoặc IP sai |
+| OSPF không FULL | Sai transit IP, OSPF Area hoặc interface |
+| Client không nhận DHCP | Sai DHCP Relay hoặc không có route đến DHCP Server |
+| Không định tuyến giữa VLAN | Chưa bật `ip routing` |

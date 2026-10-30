@@ -1,0 +1,120 @@
+
+# CORE-BR2 Configuration
+
+## 1. Vai trò
+
+CORE-BR2 là Layer 3 Switch tại chi nhánh BR2.
+
+Chức năng:
+- Tạo VLAN 70.
+- Làm Default Gateway cho người dùng BR2.
+- Thực hiện Layer 3 Routing.
+- Chuyển DHCP Request về HQ.
+- Chạy OSPF với BR2 Router.
+
+## 2. IP Addressing
+
+| Interface | IP Address |
+|---|---|
+| VLAN 70 | 192.168.70.1/24 |
+| Transit to BR2 Router | 10.255.0.10/30 |
+
+## 3. Basic Configuration
+
+```cisco
+enable
+configure terminal
+
+hostname CORE-BR2
+no ip domain-lookup
+enable secret CORE-BR2-Enable@123
+
+service password-encryption
+ip routing
+
+banner motd # CORE-BR2 - AUTHORIZED ACCESS ONLY #
+```
+
+## 4. VLAN Configuration
+
+```cisco
+vlan 70
+ name USERS
+```
+
+## 5. SVI Configuration
+
+```cisco
+interface vlan 70
+ description BR2_USERS_GATEWAY
+ ip address 192.168.70.1 255.255.255.0
+ ip helper-address 192.168.10.10
+ no shutdown
+```
+
+## 6. Transit Interface
+
+```cisco
+interface gigabitEthernet 0/2
+ description L3_TRANSIT_TO_BR2_ROUTER
+ no switchport
+ ip address 10.255.0.10 255.255.255.252
+ no shutdown
+```
+
+## 7. Trunk to Access Switch
+
+```cisco
+interface gigabitEthernet 0/1
+ description TRUNK_TO_ACCESS_SWITCH
+ switchport mode trunk
+ switchport trunk allowed vlan 70
+ no shutdown
+```
+
+## 8. OSPF Configuration
+
+```cisco
+router ospf 1
+ router-id 3.3.3.4
+ passive-interface default
+ no passive-interface gigabitEthernet 0/2
+
+ network 10.255.0.8 0.0.0.3 area 0
+ network 192.168.70.0 0.0.0.255 area 0
+```
+
+## 9. Save Configuration
+
+```cisco
+end
+write memory
+```
+
+## 10. Verification
+
+```cisco
+show vlan brief
+show interfaces trunk
+show ip interface brief
+show ip route
+show ip ospf neighbor
+show running-config
+```
+
+## 11. Expected Result
+
+- VLAN 70 được tạo.
+- Gateway của VLAN 70 là 192.168.70.1.
+- Client BR2 có thể sử dụng DHCP Relay đến HQ.
+- OSPF Neighbor với BR2 Router đạt FULL.
+- CORE-BR2 có route đến HQ thông qua BR2 Router.
+
+## 12. Troubleshooting
+
+| Vấn đề | Nguyên nhân có thể |
+|---|---|
+| Client không nhận IP | Kiểm tra DHCP Relay, VPN và routing |
+| SVI down | Kiểm tra VLAN 70 và trạng thái access port |
+| Không ping được Router | Kiểm tra transit interface |
+| OSPF không FULL | Kiểm tra IP, Area và interface |
